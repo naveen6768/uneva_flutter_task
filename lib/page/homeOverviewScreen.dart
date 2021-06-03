@@ -1,33 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:musixmatch/page/patient_details_screen.dart';
+import 'package:musixmatch/widgets/switch_sort.dart';
 import '../models/dart_json_class.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
-import './lyrics_details_screen.dart';
 import 'package:connectivity/connectivity.dart';
+import 'package:intl/intl.dart';
 
 class HomeOverviewScreen extends StatefulWidget {
-  // static const id = 'HomeOverviewScreen';
   @override
   _HomeOverviewScreenState createState() => _HomeOverviewScreenState();
 }
 
 class _HomeOverviewScreenState extends State<HomeOverviewScreen> {
-  // var _connectionStatus = 'Unknown';
   late Connectivity connectivity;
-  late Future<List<TrackList>> futureTracks;
+  late Future<List<PatientInfo>> futureTracks;
   late StreamSubscription<ConnectivityResult> subscription;
-  // var netOff;
 
-  Future<List<TrackList>> fetchTracks() async {
+  Future<List<PatientInfo>> fetchPatients() async {
     final response = await http.get(
       Uri.parse(
-        'https://api.musixmatch.com/ws/1.1/chart.tracks.get?apikey=ea94a519ff823a088d2606ce723af50b',
+        'https://dev.uneva.in/task_721/list.php',
       ),
     );
-    if (response.statusCode == 200) {
-      final tracks = tracksFromJson(response.body);
 
-      return tracks.message.body.trackList;
+    if (response.statusCode == 200) {
+      final patientInfo = patientInfoFromJson(response.body);
+      return patientInfo;
     } else {
       throw Exception('Failed to load album');
     }
@@ -36,11 +35,9 @@ class _HomeOverviewScreenState extends State<HomeOverviewScreen> {
   @override
   void initState() {
     super.initState();
-    // futureTracks = ;
     connectivity = new Connectivity();
     subscription =
         connectivity.onConnectivityChanged.listen((ConnectivityResult event) {
-      // _connectionStatus = event.toString();
       if (event == ConnectivityResult.wifi ||
           event == ConnectivityResult.mobile) {
         setState(() {});
@@ -54,17 +51,39 @@ class _HomeOverviewScreenState extends State<HomeOverviewScreen> {
     super.dispose();
   }
 
+  bool toggler = false;
+  void switchButtonToggler(bool event) {
+    if (event == true) {
+      setState(() {
+        toggler = true;
+      });
+    } else {
+      setState(() {
+        toggler = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Trending'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('token'),
+            SwitchScreen(
+              toggleHandler: switchButtonToggler,
+            ),
+            Text('alphabet'),
+          ],
+        ),
         centerTitle: true,
-        backgroundColor: Colors.yellow,
+        backgroundColor: Colors.green,
       ),
       body: Center(
         child: FutureBuilder(
-          future: fetchTracks(),
+          future: fetchPatients(),
           builder: (BuildContext context, AsyncSnapshot snapshot) {
             final data = snapshot.data;
             if (data == null) {
@@ -77,32 +96,65 @@ class _HomeOverviewScreenState extends State<HomeOverviewScreen> {
               return ListView.builder(
                 itemCount: data.length,
                 itemBuilder: (context, index) {
-                  var track = data[index].track;
-                  if (track.hasLyrics == 0) {
-                    return Container(
-                      height: 0.0,
-                    );
-                  }
+                  toggler == true
+                      ? data.sort((a, b) {
+                          return a.name.toString().compareTo(b.name.toString());
+                        })
+                      : data.sort((a, b) {
+                          return int.parse(a.tokenName)
+                              .compareTo(int.parse(b.tokenName));
+                        });
+
+                  var patient = data[index];
+
+                  String formattedDate = DateFormat('yyyy-MM-dd – kk:mm')
+                      .format(patient.createdAt);
                   return InkWell(
                     onTap: () {
                       Navigator.of(context)
                           .push(MaterialPageRoute(builder: (_) {
-                        return LyricsDetailsScreen(
-                          track_Id: track.trackId,
-                          track_Name: track.trackName,
+                        return PatientDetailsScreen(
+                          pid: patient.other.pid.toString(),
+                          pname: patient.name,
                         );
                       }));
                     },
                     child: Card(
                       elevation: 5.0,
-                      child: ListTile(
-                        title: Text(track.trackName),
-                        subtitle: Text(track.albumName),
-                        leading: Icon(Icons.music_note),
-                        trailing: Text(track.artistName),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ListTile(
+                              title: Text(
+                                patient.name,
+                                style: TextStyle(
+                                  fontSize: 15.0,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              subtitle: Text(patient.description),
+                              leading: Text(
+                                patient.tokenName,
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 30.0,
+                                ),
+                              ),
+                              trailing: Icon(
+                                Icons.location_city,
+                              ),
+                            ),
+                            Text(formattedDate),
+                          ],
+                        ),
                       ),
                     ),
                   );
+                  // );
                 },
               );
             }
